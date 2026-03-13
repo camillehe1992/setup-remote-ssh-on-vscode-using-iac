@@ -1,0 +1,93 @@
+# Pre-commit configuration for Terraform/Terragrunt projects
+# Install with: pre-commit install
+# Run manually with: pre-commit run --all-files
+
+repos:
+  # Terraform/Terragrunt specific hooks
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.88.0
+    hooks:
+      - id: terraform_fmt
+        name: Terraform Format
+        description: Format Terraform files
+
+      - id: terraform_validate
+        name: Terraform Validate
+        description: Validate Terraform syntax
+        args:
+          - --args=-json
+          - --args=-no-color
+          - --args=-backend=false # skip backend config
+          - --hook-config=--retry-once-with-cleanup=true
+        verbose: false # reduce output
+
+      - id: terraform_tflint
+        name: Terraform TFLint
+        description: Lint Terraform files
+        args:
+          - --args=--init
+
+      - id: terraform_checkov
+        name: Terraform Checkov
+        description: Static analysis of Terraform
+        args:
+          - --args=--quiet
+          - --args=--soft-fail
+
+      - id: terraform_trivy
+        name: Terraform Trivy
+        description: Vulnerability scanner
+
+  - repo: local
+    hooks:
+      # Documentation Generation
+      - id: generate-module-docs
+        name: Generate Module Documentation
+        entry: just gen-docs
+        language: system
+        pass_filenames: false
+        description: Generate documentation for all modules and examples
+
+  # Additional useful hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+        description: Remove trailing whitespace from all files
+
+      - id: end-of-file-fixer
+        name: Fix End of Files
+        description: Ensure files end with a newline
+
+      - id: check-yaml
+        name: Check YAML Syntax
+        description: Validate YAML syntax
+
+      - id: check-json
+        name: Check JSON Syntax
+        description: Validate JSON syntax
+
+      - id: check-merge-conflict
+        name: Check Merge Conflicts
+        description: Check for unresolved merge conflicts
+
+      - id: detect-private-key
+        name: Detect Private Key
+        description: Check for private keys in files
+
+      - id: mixed-line-ending
+        name: Check Mixed Line Endings
+        description: Detect files with mixed line endings
+        args: ["--fix=lf"]
+
+# Configuration for specific hooks
+exclude: |
+  (?x)^(
+    \.terraform/.*|
+    \.git/.*|
+    node_modules/.*|
+    vendor/.*|
+    \.idea/.*|
+    \.vscode/.*
+  )$
