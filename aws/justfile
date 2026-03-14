@@ -1,0 +1,64 @@
+# justfile - Task runner for Terraform workflows
+# Usage: just command
+# Example:
+# In aws directory
+# >>	just create-ssh-key
+# or in root directory
+# >>	just aws/create-ssh-key
+
+# Cloud Provider
+cloud-provider := "aws"
+
+# Project root directory (where the justfile is located)
+PROJECT_ROOT := `pwd`
+
+# Shell to use
+set shell := ["bash", "-uc"]
+set dotenv-load := true
+set fallback := true
+
+create-ssh-key:
+	#!/usr/bin/env bash
+	# Create a new key pair
+	AWS_PROFILE=$(just aws-profile)
+	aws ec2 create-key-pair --key-name aws-remote-ssh-on-vscode \
+		--query 'KeyMaterial' \
+		--profile ${AWS_PROFILE} \
+		--output text > aws-remote-ssh-on-vscode.pem
+
+	# Set permissions on the key pair file
+	chmod 400 aws-remote-ssh-on-vscode.pem
+
+	# Move the key pair file to the ~/.ssh/ directory
+	mv aws-remote-ssh-on-vscode.pem ~/.ssh/
+
+	# List existing key pairs
+	aws ec2 describe-key-pairs --key-name aws-remote-ssh-on-vscode --profile ${AWS_PROFILE}
+
+ssh-cmd:
+	#!/usr/bin/env bash
+	echo "[*] Connect to your instance using the SSH command below"
+	CMD=$(terraform output -raw ssh_command)
+	echo $CMD
+
+add-ssh-config:
+	#!/usr/bin/env bash
+	INSTANCE_ID=$(terraform output -raw instance_id)
+	PUBLIC_IP=$(terraform output -raw instance_public_ip)
+	OS_USER=$(terraform output -raw instance_ssh_username)
+	AWS_PROFILE=$(just aws-profile)
+	echo "[*] Adding instance to ~/.ssh/config file..."
+
+	echo "Host aws-dev-instance" >> ~/.ssh/config
+	echo "    HostName ${PUBLIC_IP}" >> ~/.ssh/config
+	echo "    User ${OS_USER}" >> ~/.ssh/config
+	echo "    IdentityFile ~/.ssh/aws-remote-ssh-on-vscode.pem" >> ~/.ssh/config
+
+	cat ~/.ssh/config
+
+update-ssh-ip:
+	#!/usr/bin/env bash
+	# Update the security group rule for SSH access
+	AWS_PROFILE=$(just aws-profile)
+	SECURITY_GROUP_ID=$(terraform output -raw security_group_id)
+	../scripts/update-ssh-ip.sh ${AWS_PROFILE} ${SECURITY_GROUP_ID}

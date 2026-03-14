@@ -104,40 +104,51 @@ pre-check cloud-provider:
 init cloud-provider:
     #!/usr/bin/env bash
     PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-unit-dir {{cloud-provider}})
-    echo "[*] Initializing - Terraform Unit ${TF_DIR}"
-    cd ${TF_DIR} && {{cloud-provider}}_PROFILE=${PROFILE} terraform init -input=false
+    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
+    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
+    echo "[*] [PROFILE: ${PROFILE}] Initializing - Terraform : ${TF_DIR}"
+    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform init -input=false
 
 plan cloud-provider:
     #!/usr/bin/env bash
     just init {{cloud-provider}}
     PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-unit-dir {{cloud-provider}})
-    VAR_OPTIONS=$(just tf-options {{cloud-provider}})
-    echo "[*] Planning - Terraform Unit ${TF_DIR}"
-
-    cd ${TF_DIR} && {{cloud-provider}}_PROFILE=${PROFILE} terraform plan -input=false -out=tfplan
+    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
+    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
+    echo "[*] [PROFILE: ${PROFILE}] Planning - Terraform : ${TF_DIR}"
+    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform plan -input=false -out=tfplan
 
 apply cloud-provider:
     #!/usr/bin/env bash
     PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-unit-dir {{cloud-provider}})
-    echo "[*] Applying - Terraform Unit ${TF_DIR}"
-    cd ${TF_DIR} && {{cloud-provider}}_PROFILE=${PROFILE} terraform apply -auto-approve -input=false tfplan
+    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
+    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
+    echo "[*] [PROFILE: ${PROFILE}] Applying - Terraform : ${TF_DIR}"
+    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform apply -auto-approve -input=false tfplan
 
-destroy cloud-provider:
+plan-destroy cloud-provider:
     #!/usr/bin/env bash
     just init {{cloud-provider}}
     PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-unit-dir {{cloud-provider}})
-    VAR_OPTIONS=$(just tf-options {{cloud-provider}})
-    echo "[*] Destroying - Terraform Unit ${TF_DIR}"
-    cd ${TF_DIR} && {{cloud-provider}}_PROFILE=${PROFILE} terraform destroy -auto-approve -input=false
+    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
+    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
+    echo "[*] [PROFILE: ${PROFILE}] Planning Destroy - Terraform : ${TF_DIR}"
+    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform plan -destroy -input=false -out=tfplan
 
 plan-apply cloud-provider:
     #!/usr/bin/env bash
     just plan {{cloud-provider}}
     just apply {{cloud-provider}}
+
+destroy-apply cloud-provider:
+    #!/usr/bin/env bash
+    just plan-destroy {{cloud-provider}}
+    just apply {{cloud-provider}}
+
+output cloud-provider:
+    #!/usr/bin/env bash
+    echo "Outputting {{cloud-provider}}..."
+    cd {{cloud-provider}} && terraform output -json
 
 validate cloud-provider:
     #!/usr/bin/env bash
@@ -168,11 +179,8 @@ lint-md:
 
 gen-docs:
     #!/usr/bin/env bash
-    echo "Generate Terraform Docs"
-    CP_DIR=$(just tf-cp-dir {{cloud-provider}})
-    for dir in ${CP_DIR}/*;
-    do 
-        if [ -d "$dir" ]; 
-            then (cd "$dir" && terraform-docs markdown table --output-file README.md --output-mode inject --config ../.terraform-docs.yaml .); 
-        fi; 
+    # Generate Terraform Docs for aws, azure, aliyun all in one command
+    for cloud_provider in aws; do
+        echo "Generate Terraform Docs - docs/${cloud_provider}-infra-docs.md"
+        cd "${cloud_provider}" && terraform-docs markdown table --output-file ../docs/${cloud_provider}-infra-docs.md --output-mode inject --config ../.terraform-docs.yaml .
     done

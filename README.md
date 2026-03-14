@@ -24,7 +24,7 @@ For MacOS users, you can use Homebrew to install Terraform and AWS CLI and other
   brew update
 
   brew install terraform just markdownlint-cli terraform-docs pre-commit checkov trivy
-  
+
   brew install awscli azure-cli aliyun-cli
   ```
 
@@ -49,19 +49,21 @@ cd setup-remote-ssh-on-vscode-using-iac
 
 ## Provision the Infrastructure to Target Cloud Provider
 
-Run just recipes to plan-apply infrastructure to target Cloud Provider, for example:
+Run just recipes to provision the infrastructure to target Cloud Provider - `aws`, `azure`, `aliyun`, for example:
 
-| Command                           | Description                                                     |
-| --------------------------------- | --------------------------------------------------------------- |
-| `just init <cloud-provider>`      | Initialize Terraform infrastructure for target Cloud Provider.  |
-| `just plan <cloud-provider>`      | Plan the Terraform infrastructure for target Cloud Provider.    |
-| `just apply <cloud-provider>`     | Apply the Terraform infrastructure for target Cloud Provider.   |
-| `just destroy <cloud-provider>`   | Destroy the Terraform infrastructure for target Cloud Provider. |
-| `just output <cloud-provider>`    | Output the Terraform infrastructure for target Cloud Provider.  |
-| `just pre-check <cloud-provider>` | Pre-check the Cloud Provider credentials for Terraform to use.  |
-| `just validate <cloud-provider>`  | Validate the Terraform configuration for target Cloud Provider. |
-| `just lint <cloud-provider>`      | Lint the Terraform configuration for target Cloud Provider.     |
-| `just fmt <cloud-provider>`       | Format the Terraform configuration for target Cloud Provider.   |
+| Command                               | Description                                                            |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `just pre-check <cloud-provider>`     | Pre-check the Cloud Provider credentials for Terraform to use.         |
+| `just init <cloud-provider>`          | Initialize Terraform infrastructure for target Cloud Provider.         |
+| `just plan <cloud-provider>`          | Plan the Terraform infrastructure for target Cloud Provider.           |
+| `just apply <cloud-provider>`         | Apply the Terraform infrastructure for target Cloud Provider.          |
+| `just destroy <cloud-provider>`       | Plan the Terraform infrastructure destroy for target Cloud Provider.   |
+| `just plan-apply <cloud-provider>`    | Plan and apply the Terraform infrastructure for target Cloud Provider. |
+| `just destroy-apply <cloud-provider>` | Destroy the Terraform infrastructure for target Cloud Provider.        |
+| `just output <cloud-provider>`        | Output the Terraform infrastructure for target Cloud Provider.         |
+| `just validate <cloud-provider>`      | Validate the Terraform configuration for target Cloud Provider.        |
+| `just lint <cloud-provider>`          | Lint the Terraform configuration for target Cloud Provider.            |
+| `just fmt <cloud-provider>`           | Format the Terraform configuration for target Cloud Provider.          |
 
 ## References
 

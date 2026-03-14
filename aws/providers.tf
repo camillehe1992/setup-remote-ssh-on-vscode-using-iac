@@ -12,8 +12,10 @@ provider "aws" {
   # Default tags to be applied to all resources created by this provider
   default_tags {
     tags = {
-      Repository    = "setup-remote-ssh-on-vscode-using-iac "
+      Repository    = "setup-remote-ssh-on-vscode-using-iac"
       CloudPlatform = "aws"
+      Project       = var.project_name
+      Environment   = var.environment
     }
   }
 }
