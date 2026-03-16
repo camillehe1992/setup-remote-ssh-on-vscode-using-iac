@@ -12,9 +12,7 @@ PROJECT_ROOT := `pwd`
 set shell := ["bash", "-uc"]
 set dotenv-load := true
 
-# ------------------------------------------------------------------------------
-# Helper functions (as recipes)
-# ------------------------------------------------------------------------------
+
 versions:
     #!/usr/bin/env bash
     echo "Show version information for installed tools..."
@@ -24,50 +22,50 @@ versions:
     echo "pre-commit version: $(pre-commit -V)"
     echo "checkov version: $(checkov --version)"
     echo "trivy version: $(trivy --version)"
-
+    # Install CLI for cloud providers as needed
     echo "AWS version $(aws --version | head -n 1)"
     echo "Azure version $(az --version | head -n 1)"
     echo "AliCloud version $(aliyun --version | head -n 1)"
 
 # Get cloud-provider profile
-aws-profile:
-    #!/usr/bin/env bash
-    # Check if running in GitHub Actions
-    if [ -n "$GITHUB_ACTIONS" ]; then
-        # In GitHub Actions with OIDC, we don't use named profiles
-        # The credentials are already set by configure-aws-credentials
-        echo ""
-    elif [ -f .env ]; then
-        source .env && echo "${AWS_PROFILE:-app-deployer}"
-    else
-        echo "app-deployer"
-    fi
+# aws-profile:
+#     #!/usr/bin/env bash
+#     # Check if running in GitHub Actions
+#     if [ -n "$GITHUB_ACTIONS" ]; then
+#         # In GitHub Actions with OIDC, we don't use named profiles
+#         # The credentials are already set by configure-aws-credentials
+#         echo ""
+#     elif [ -f .env ]; then
+#         source .env && echo "${AWS_PROFILE:-app-deployer}"
+#     else
+#         echo "app-deployer"
+#     fi
 
-azure-profile:
-    #!/usr/bin/env bash
-    # Check if running in GitHub Actions
-    if [ -n "$GITHUB_ACTIONS" ]; then
-        # In GitHub Actions with OIDC, we don't use named profiles
-        # The credentials are already set by configure-azure-credentials
-        echo ""
-    elif [ -f .env ]; then
-        source .env && echo "${AZURE_PROFILE:-azure-deployer}"
-    else
-        echo "azure-deployer"
-    fi
+# azure-profile:
+#     #!/usr/bin/env bash
+#     # Check if running in GitHub Actions
+#     if [ -n "$GITHUB_ACTIONS" ]; then
+#         # In GitHub Actions with OIDC, we don't use named profiles
+#         # The credentials are already set by configure-azure-credentials
+#         echo ""
+#     elif [ -f .env ]; then
+#         source .env && echo "${AZURE_PROFILE:-azure-deployer}"
+#     else
+#         echo "azure-deployer"
+#     fi
 
-aliyun-profile:
-    #!/usr/bin/env bash
-    # Check if running in GitHub Actions
-    if [ -n "$GITHUB_ACTIONS" ]; then
-        # In GitHub Actions with OIDC, we don't use named profiles
-        # The credentials are already set by configure-aliyun-credentials
-        echo ""
-    elif [ -f .env ]; then
-        source .env && echo "${ALICLOUD_PROFILE:-aliyun-deployer}"
-    else
-        echo "aliyun-deployer"
-    fi
+# aliyun-profile:
+#     #!/usr/bin/env bash
+#     # Check if running in GitHub Actions
+#     if [ -n "$GITHUB_ACTIONS" ]; then
+#         # In GitHub Actions with OIDC, we don't use named profiles
+#         # The credentials are already set by configure-aliyun-credentials
+#         echo ""
+#     elif [ -f .env ]; then
+#         source .env && echo "${ALICLOUD_PROFILE:-aliyun-deployer}"
+#     else
+#         echo "aliyun-deployer"
+#     fi
 
 # ------------------------------------------------------------------------------
 # Path helpers (as recipes)
@@ -81,90 +79,6 @@ tf-cp-dir cloud-provider:
 # ------------------------------------------------------------------------------
 # Core commands
 # ------------------------------------------------------------------------------
-
-# Pre-check - Verify cloud-provider credentials
-pre-check cloud-provider:
-    #!/usr/bin/env bash
-    echo "[*] Pre-Check - {{cloud-provider}} Profile..."
-    set +e
-    if [ "{{cloud-provider}}" == "aws" ]; then
-        PROFILE=$(just aws-profile)
-        AWS_PROFILE=${PROFILE} aws sts get-caller-identity | jq .
-    elif [ "{{cloud-provider}}" == "azure" ]; then
-        PROFILE=$(just azure-profile)
-        AZURE_PROFILE=${PROFILE} az account show | jq .
-    elif [ "{{cloud-provider}}" == "aliyun" ]; then
-        PROFILE=$(just aliyun-profile)
-        ALICLOUD_PROFILE=${PROFILE} alicloud sts:GetCallerIdentity | jq .
-    else
-        echo "Invalid cloud-provider: ${cloud-provider}, must be one of aws, azure or aliyun"
-        exit 1
-    fi
-
-init cloud-provider:
-    #!/usr/bin/env bash
-    PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
-    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
-    echo "[*] [PROFILE: ${PROFILE}] Initializing - Terraform : ${TF_DIR}"
-    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform init -input=false
-
-plan cloud-provider:
-    #!/usr/bin/env bash
-    just init {{cloud-provider}}
-    PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
-    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
-    echo "[*] [PROFILE: ${PROFILE}] Planning - Terraform : ${TF_DIR}"
-    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform plan -input=false -out=tfplan
-
-apply cloud-provider:
-    #!/usr/bin/env bash
-    PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
-    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
-    echo "[*] [PROFILE: ${PROFILE}] Applying - Terraform : ${TF_DIR}"
-    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform apply -auto-approve -input=false tfplan
-
-plan-destroy cloud-provider:
-    #!/usr/bin/env bash
-    just init {{cloud-provider}}
-    PROFILE=$(just {{cloud-provider}}-profile)
-    TF_DIR=$(just tf-cp-dir {{cloud-provider}})
-    CP=$(echo "{{cloud-provider}}" | tr '[:lower:]' '[:upper:]')
-    echo "[*] [PROFILE: ${PROFILE}] Planning Destroy - Terraform : ${TF_DIR}"
-    cd ${TF_DIR} && env ${CP}_PROFILE=${PROFILE} terraform plan -destroy -input=false -out=tfplan
-
-plan-apply cloud-provider:
-    #!/usr/bin/env bash
-    just plan {{cloud-provider}}
-    just apply {{cloud-provider}}
-
-destroy-apply cloud-provider:
-    #!/usr/bin/env bash
-    just plan-destroy {{cloud-provider}}
-    just apply {{cloud-provider}}
-
-output cloud-provider:
-    #!/usr/bin/env bash
-    echo "Outputting {{cloud-provider}}..."
-    cd {{cloud-provider}} && terraform output -json
-
-validate cloud-provider:
-    #!/usr/bin/env bash
-    echo "Validating {{cloud-provider}}..."
-    cd {{cloud-provider}} && terraform validate
-
-fmt cloud-provider:
-    #!/usr/bin/env bash
-    echo "Formatting {{cloud-provider}}..."
-    cd {{cloud-provider}} && terraform fmt -recursive
-
-lint cloud-provider:
-    #!/usr/bin/env bash
-    echo "Linting {{cloud-provider}}..."
-    cd {{cloud-provider}} && terraform fmt -check -recursive
-
 clean:
     #!/usr/bin/env bash
     echo "[*] Cleaning up temporary files"
@@ -177,10 +91,13 @@ lint-md:
     echo "Linting markdown files..."
     markdownlint "**/*.md"
 
+# Generate Terraform Docs for all cloud providers
 gen-docs:
     #!/usr/bin/env bash
-    # Generate Terraform Docs for aws, azure, aliyun all in one command
-    for cloud_provider in aws; do
-        echo "Generate Terraform Docs - docs/${cloud_provider}-infra-docs.md"
-        cd "${cloud_provider}" && terraform-docs markdown table --output-file ../docs/${cloud_provider}-infra-docs.md --output-mode inject --config ../.terraform-docs.yaml .
+    echo "[*] Generating Terraform Docs for all cloud providers..."
+    for cloud_provider in */; do
+        # run just only in a folder contains justfile
+        if [ -f ${cloud_provider}/justfile ]; then
+            just ${cloud_provider}/gen-docs
+        fi
     done

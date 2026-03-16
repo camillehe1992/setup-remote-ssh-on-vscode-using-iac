@@ -1,0 +1,106 @@
+# justfile - Task runner for Terraform workflows
+# Usage: just command
+# Example:
+# From root directory, run `just aws/linux/plan`
+# Or from aws directory, run `just linux/plan`
+# Or from aws/linux directory, run `just plan`
+
+# Project root directory (where the justfile is located)
+PROJECT_ROOT := `pwd`
+
+# Shell to use
+set shell := ["bash", "-uc"]
+set dotenv-load := true
+set fallback := true
+
+# Variables or fetch from environment variables (.env)
+ENVIRONMENT := env_var_or_default("ENVIRONMENT", "dev")
+AWS_REGION := env_var_or_default("AWS_REGION", "ap-southeast-1")
+S3_TF_STATE_BUCKET := env_var_or_default("S3_TF_STATE_BUCKET", "terraform-state-${AWS_REGION}-bucket")
+
+# Get os type
+_get-os-type:
+	#!/usr/bin/env bash
+	basename $(pwd)
+
+# Pre Check - Check cloud provider, os type, environment, aws region, s3 tf state bucket
+pre-check:
+	#!/usr/bin/env bash
+	echo "[*] Pre-checks..."
+	CLOUD_PROVIDER=$(just _get-cloud-provider)
+	AWS_PROFILE=$(just _get-aws-profile)
+	OS_TYPE=$(just _get-os-type)
+
+	echo "CLOUD_PROVIDER: ${CLOUD_PROVIDER}"
+	echo "AWS_PROFILE: ${AWS_PROFILE}"
+	echo "OS_TYPE: ${OS_TYPE}"
+	echo "ENVIRONMENT: ${ENVIRONMENT}"
+	echo "AWS_REGION: ${AWS_REGION}"
+	echo "S3_TF_STATE_BUCKET: ${S3_TF_STATE_BUCKET}"
+
+	AWS_PROFILE=${AWS_PROFILE} aws sts get-caller-identity | jq .
+
+# Initialize Terraform backend
+init:
+	#!/usr/bin/env bash
+	echo "[*] Initialize Terraform backend..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	OS_TYPE=$(just _get-os-type)
+	terraform init \
+		-backend-config="bucket=${S3_TF_STATE_BUCKET}" \
+		-backend-config="key=setup-remote-ssh-on-vscode-using-iac/${ENVIRONMENT}/${OS_TYPE}/terraform.tfstate" \
+		-backend-config="region=${AWS_REGION}" \
+		-backend-config="profile=${AWS_PROFILE}" \
+		-backend-config="encrypt=true" \
+		-backend-config="use_lockfile=true"
+
+# Make a Terraform plan - tfplan
+plan: init
+	#!/usr/bin/env bash
+	echo "[*] Make a Terraform plan - tfplan..."
+	AWS_PROFILE=$(just _get-aws-profile) terraform plan -out=tfplan
+
+# Apply the Terraform plan - tfplan
+apply:
+	#!/usr/bin/env bash
+	echo "[*] Apply the Terraform plan - tfplan..."
+	AWS_PROFILE=$(just _get-aws-profile) terraform apply -auto-approve tfplan
+
+# Make a Terraform plan - tfplan for destroy
+destroy: init
+	#!/usr/bin/env bash
+	echo "[*] Make a Terraform plan - tfplan for destroy..."
+	AWS_PROFILE=$(just _get-aws-profile) terraform plan -destroy -out=tfplan
+
+# Get the output of Terraform plan - tfplan
+output: init
+	#!/usr/bin/env bash
+	echo "[*] Get the output of Terraform plan - tfplan..."
+	AWS_PROFILE=$(just _get-aws-profile) terraform output -raw tfplan
+
+# Refresh the state of Terraform plan - tfplan
+refresh: init
+	#!/usr/bin/env bash
+	echo "[*] Refresh the state of Terraform plan - tfplan..."
+	AWS_PROFILE=$(just _get-aws-profile) terraform refresh tfplan
+
+# Combined recipes for quick provisioning
+plan-apply: plan apply
+	#!/usr/bin/env bash
+	echo "[*] Quick provisioning completed"
+
+# Combined recipes for quick destruction
+destroy-apply: destroy apply
+	#!/usr/bin/env bash
+	echo "[*] Quick destruction completed"
+
+# Generate Terraform Docs for the current directory
+gen-docs:
+	#!/usr/bin/env bash
+	CLOUD_PROVIDER=$(just _get-cloud-provider)
+	OS_TYPE=$(just _get-os-type)
+	echo "[*] Generating Terraform Docs for ${CLOUD_PROVIDER}/${OS_TYPE}..."
+	terraform-docs markdown table \
+		--output-file README.md \
+		--output-mode inject \
+		--config ../../.terraform-docs.yaml .

@@ -1,13 +1,8 @@
 # justfile - Task runner for Terraform workflows
 # Usage: just command
 # Example:
-# In aws directory
-# >>	just create-ssh-key
-# or in root directory
-# >>	just aws/create-ssh-key
-
-# Cloud Provider
-cloud-provider := "aws"
+# From root directory, run `just aws/pre-check`
+# Or from aws directory, run `just pre-check`
 
 # Project root directory (where the justfile is located)
 PROJECT_ROOT := `pwd`
@@ -17,37 +12,71 @@ set shell := ["bash", "-uc"]
 set dotenv-load := true
 set fallback := true
 
+# Get cloud-provider
+_get-cloud-provider:
+	#!/usr/bin/env bash
+	basename $(pwd)
+
+# Get aws profile
+_get-aws-profile:
+    #!/usr/bin/env bash
+    # Check if running in GitHub Actions
+    if [ -n "$GITHUB_ACTIONS" ]; then
+        # In GitHub Actions with OIDC, we don't use named profiles
+        # The credentials are already set by configure-aws-credentials
+        echo ""
+    elif [ -f .env ]; then
+        source .env && echo "${AWS_PROFILE:-app-deployer}"
+    else
+        echo "app-deployer"
+    fi
+
+# Pre Check cloud provider, aws profile
+pre-check:
+	#!/usr/bin/env bash
+	echo "[*] Pre-checks..."
+	CLOUD_PROVIDER=$(just _get-cloud-provider)
+	AWS_PROFILE=$(just _get-aws-profile)
+
+	echo "CLOUD_PROVIDER: ${CLOUD_PROVIDER}"
+	echo "AWS_PROFILE: ${AWS_PROFILE}"
+	AWS_PROFILE=${AWS_PROFILE} aws sts get-caller-identity | jq .
+
+# Create a new key pair via AWS CLI
 create-ssh-key:
 	#!/usr/bin/env bash
-	# Create a new key pair
-	AWS_PROFILE=$(just aws-profile)
-	aws ec2 create-key-pair --key-name aws-remote-ssh-on-vscode \
+	echo "[*] Creating a new key pair..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	KEY_PAIR_NAME="aws-remote-ssh-on-vscode"
+	aws ec2 create-key-pair --key-name ${KEY_PAIR_NAME} \
 		--query 'KeyMaterial' \
 		--profile ${AWS_PROFILE} \
-		--output text > aws-remote-ssh-on-vscode.pem
+		--output text > ${KEY_PAIR_NAME}.pem
 
-	# Set permissions on the key pair file
-	chmod 400 aws-remote-ssh-on-vscode.pem
+	echo "[*] Setting permissions on the key pair file..."
+	chmod 400 ${KEY_PAIR_NAME}.pem
 
-	# Move the key pair file to the ~/.ssh/ directory
-	mv aws-remote-ssh-on-vscode.pem ~/.ssh/
+	echo "[*] Moving the key pair file to the ~/.ssh/ directory..."
+	mv ${KEY_PAIR_NAME}.pem ~/.ssh/${KEY_PAIR_NAME}.pem
 
-	# List existing key pairs
-	aws ec2 describe-key-pairs --key-name aws-remote-ssh-on-vscode --profile ${AWS_PROFILE}
+	echo "[*] Listing existing key pairs..."
+	aws ec2 describe-key-pairs --key-name ${KEY_PAIR_NAME} --profile ${AWS_PROFILE}
 
-ssh-cmd:
+# Connect to your instance using the SSH command
+ssh-connect:
 	#!/usr/bin/env bash
-	echo "[*] Connect to your instance using the SSH command below"
+	echo "[*] Connect to your instance using the SSH command"
 	CMD=$(terraform output -raw ssh_command)
 	echo $CMD
 
+# Add instance to ~/.ssh/config file
 add-ssh-config:
 	#!/usr/bin/env bash
+	echo "[*] Adding instance to ~/.ssh/config file..."
 	INSTANCE_ID=$(terraform output -raw instance_id)
 	PUBLIC_IP=$(terraform output -raw instance_public_ip)
 	OS_USER=$(terraform output -raw instance_ssh_username)
-	AWS_PROFILE=$(just aws-profile)
-	echo "[*] Adding instance to ~/.ssh/config file..."
+	AWS_PROFILE=$(just _get-aws-profile)
 
 	echo "Host aws-dev-instance" >> ~/.ssh/config
 	echo "    HostName ${PUBLIC_IP}" >> ~/.ssh/config
@@ -56,9 +85,19 @@ add-ssh-config:
 
 	cat ~/.ssh/config
 
+# Update the security group rule for SSH access
 update-ssh-ip:
 	#!/usr/bin/env bash
-	# Update the security group rule for SSH access
-	AWS_PROFILE=$(just aws-profile)
+	echo "[*] Updating security group rule for SSH access..."
+	AWS_PROFILE=$(just _get-aws-profile)
 	SECURITY_GROUP_ID=$(terraform output -raw security_group_id)
-	../scripts/update-ssh-ip.sh ${AWS_PROFILE} ${SECURITY_GROUP_ID}
+	bash ../scripts/update-ssh-ip.sh ${AWS_PROFILE} ${SECURITY_GROUP_ID}
+
+# Generate Terraform Docs for AWS resources
+gen-docs:
+	#!/usr/bin/env bash
+	CLOUD_PROVIDER=$(just _get-cloud-provider)
+	echo "[*] Generating Terraform Docs for ${CLOUD_PROVIDER} resources..."
+	for dir in */ ; do
+		just ${dir%/}/gen-docs
+	done
