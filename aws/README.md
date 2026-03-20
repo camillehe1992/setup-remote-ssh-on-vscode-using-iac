@@ -1,17 +1,17 @@
 # Remote SSH on VSCode - Terraform Infrastructure for AWS
 
-This Terraform configuration sets up AWS infrastructure for remote SSH development with VSCode.
+This Terraform configuration creates a fully-configured development environment in AWS with VS Code Server, persistent data storage, and automated backups.
 
-This Terraform configuration provides:
+## Features
 
-1. **Complete variable configuration** for all resources
-2. **Spot instance support** with fallback to on-demand
-3. **Automatic IP detection** for SSH security group
-4. **IAM roles** with the specified policies
-5. **EBS data volume** with gp3 type
-6. **Daily backup** with 7-day retention (configurable)
-7. **User data script** to mount the data volume automatically
-8. **Proper outputs** including SSH connection command
+- 🚀 **VS Code Server** pre-installed and configured
+- 💰 **Spot instance support** with fallback to on-demand
+- 🔒 **Automatic IP detection** for SSH security group
+- 🔄 **IAM roles** with the specified policies
+- 💾 **EBS data volume** with gp3 type
+- 💽 **Daily backup** with 7-day retention (configurable)
+- 📦 **User data script** to mount the data volume automatically
+- 🎯 **Proper outputs** including SSH connection command
 
 ## Prerequisites
 

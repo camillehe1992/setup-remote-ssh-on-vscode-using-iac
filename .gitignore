@@ -41,3 +41,5 @@ tfplan
 
 **/.env
 .env
+
+terraform.access.key

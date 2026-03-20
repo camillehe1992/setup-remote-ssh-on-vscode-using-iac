@@ -60,7 +60,7 @@ create-ssh-key:
 	mv ${KEY_PAIR_NAME}.pem ~/.ssh/${KEY_PAIR_NAME}.pem
 
 	echo "[*] Listing existing key pairs..."
-	aws ec2 describe-key-pairs --key-name ${KEY_PAIR_NAME} --profile ${AWS_PROFILE}
+	aws ec2 describe-key-pairs --key-name ${KEY_PAIR_NAME} --profile ${AWS_PROFILE} | jq .
 
 # Connect to your instance using the SSH command
 ssh-connect:
