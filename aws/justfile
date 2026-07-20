@@ -96,8 +96,13 @@ update-ssh-ip:
 # Generate Terraform Docs for AWS resources
 gen-docs:
 	#!/usr/bin/env bash
-	CLOUD_PROVIDER=$(just _get-cloud-provider)
-	echo "[*] Generating Terraform Docs for ${CLOUD_PROVIDER} resources..."
+	set -euo pipefail
 	for dir in */ ; do
-		just ${dir%/}/gen-docs
+		if [ -f "${dir}justfile" ]; then
+			echo "[*] Updating module docs for aws/${dir%/}"
+			(
+				cd "${dir}"
+				just gen-docs
+			)
+		fi
 	done

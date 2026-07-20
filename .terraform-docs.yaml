@@ -11,7 +11,10 @@ sections:
   show: []
   hide-all: false
   show-all: true
-content: ""
+content: |-
+  <!-- markdownlint-disable -->
+  {{ .Content }}
+  <!-- markdownlint-restore -->
 output:
   file: ""
   mode: inject

@@ -1,6 +1,10 @@
 # Pre-commit configuration for Terraform/Terragrunt projects
 # Install with: pre-commit install
+# This installs both pre-commit and pre-push hooks by default.
 # Run manually with: pre-commit run --all-files
+
+minimum_pre_commit_version: "3.5.0"
+default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   # Terraform/Terragrunt specific hooks
@@ -10,6 +14,7 @@ repos:
       - id: terraform_fmt
         name: Terraform Format
         description: Format Terraform files
+        stages: [pre-commit]
 
       - id: terraform_validate
         name: Terraform Validate
@@ -19,12 +24,14 @@ repos:
           - --args=-no-color
           - --hook-config=--retry-once-with-cleanup=true
         verbose: false # reduce output
+        stages: [pre-commit]
 
       - id: terraform_tflint
         name: Terraform TFLint
         description: Lint Terraform files
         args:
           - --args=--init
+        stages: [pre-commit]
 
       - id: terraform_checkov
         name: Terraform Checkov
@@ -32,23 +39,34 @@ repos:
         args:
           - --args=--quiet
           - --args=--soft-fail
+        stages: [pre-push]
 
       - id: terraform_trivy
         name: Terraform Trivy
         description: Vulnerability scanner for Terraform code
         args:
           - --args=--quiet
-        stages: [push] # Only run on push, not on every commit
+        stages: [pre-push]
 
   - repo: local
     hooks:
       # Documentation Generation
       - id: generate-module-docs
         name: Generate Module Documentation
-        entry: just gen-docs
+        entry: bash scripts/generate-module-docs.sh
         language: system
-        pass_filenames: false
-        description: Generate documentation for all modules and examples
+        files: (^|/)\.terraform-docs\.yaml$|\.tf$
+        description: Generate Terraform module documentation for affected modules
+        stages: [pre-commit]
+
+      # Markdown lint for changed documentation files
+      - id: markdownlint
+        name: Markdown Lint
+        entry: markdownlint
+        language: system
+        types: [markdown]
+        description: Lint changed Markdown files
+        stages: [pre-commit]
 
   # Additional useful hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -86,10 +104,10 @@ repos:
 # Configuration for specific hooks
 exclude: |
   (?x)^(
-    \.terraform/.*|
-    \.git/.*|
-    node_modules/.*|
-    vendor/.*|
-    \.idea/.*|
-    \.vscode/.*
+    .*?(^|/)\.terraform/.*|
+    .*?(^|/)\.git/.*|
+    .*?(^|/)node_modules/.*|
+    .*?(^|/)vendor/.*|
+    .*?(^|/)\.idea/.*|
+    .*?(^|/)\.vscode/.*
   )$

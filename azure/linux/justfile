@@ -1,0 +1,117 @@
+# justfile - Task runner for Terraform workflows
+# Usage: just command
+# Example:
+# From root directory, run `just azure/linux/plan`
+# Or from azure directory, run `just linux/plan`
+# Or from azure/linux directory, run `just plan`
+
+# Project root directory (where the justfile is located)
+PROJECT_ROOT := `pwd`
+
+# Shell to use
+set shell := ["bash", "-uc"]
+set dotenv-load := true
+set fallback := true
+
+# Environment Variables form .env file
+# Azure Service Principal
+# ARM_CLIENT_ID := env_var_or_default("ARM_CLIENT_ID", "")
+# ARM_CLIENT_SECRET := env_var_or_default("ARM_CLIENT_SECRET", "")
+# ARM_TENANT_ID := env_var_or_default("ARM_TENANT_ID", "")
+# ARM_SUBSCRIPTION_ID := env_var_or_default("ARM_SUBSCRIPTION_ID", "")
+
+# # Azure Environment
+# ARM_ENVIRONMENT := env_var_or_default("ARM_ENVIRONMENT", "china")
+# LOCATION := env_var_or_default("LOCATION", "chinanorth3")
+
+# # Project Environment
+# ENVIRONMENT := env_var_or_default("ENVIRONMENT", "dev")
+
+# # Backend config
+# BACKEND_RESOURCE_GROUP_NAME := env_var_or_default("BACKEND_RESOURCE_GROUP_NAME", "terraform-state-rg")
+# STORAGE_ACCOUNT_NAME := env_var_or_default("STORAGE_ACCOUNT_NAME", "tfstatechinanorth3")
+# CONTAINER_NAME := env_var_or_default("CONTAINER_NAME", "tfstate")
+
+# Get os type
+_get-os-type:
+	#!/usr/bin/env bash
+	basename $(pwd)
+
+# Pre Check - Check cloud provider, os type, environment, azure region, s3 tf state bucket
+pre-check:
+	#!/usr/bin/env bash
+	echo "[*] Pre-checks..."
+	CLOUD_PROVIDER=$(just _get-cloud-provider)
+	OS_TYPE=$(just _get-os-type)
+
+	echo "CLOUD_PROVIDER: ${CLOUD_PROVIDER}"
+	echo "OS_TYPE: ${OS_TYPE}"
+	echo "ENVIRONMENT: ${ENVIRONMENT}"
+	echo "LOCATION: ${LOCATION}"
+	echo "RESOURCE_GROUP_NAME: ${RESOURCE_GROUP_NAME}"
+	echo "STORAGE_ACCOUNT_NAME: ${STORAGE_ACCOUNT_NAME}"
+	echo "CONTAINER_NAME: ${CONTAINER_NAME}"
+
+# Initialize Terraform backend
+init:
+	#!/usr/bin/env bash
+	echo "[*] Initialize Terraform backend..."
+	ACCESS_KEY=$(just _get-azure-arm-access-key)
+	OS_TYPE=$(just _get-os-type)
+	terraform init -reconfigure \
+		-backend-config="resource_group_name=${RESOURCE_GROUP_NAME}" \
+		-backend-config="storage_account_name=${STORAGE_ACCOUNT_NAME}" \
+		-backend-config="container_name=${CONTAINER_NAME}" \
+		-backend-config="key=setup-remote-ssh-on-vscode-using-iac/${ENVIRONMENT}/${OS_TYPE}/terraform.tfstate" \
+		-backend-config="access_key=${ACCESS_KEY}"
+
+# Make a Terraform plan - tfplan
+plan: init
+	#!/usr/bin/env bash
+	echo "[*] Make a Terraform plan - tfplan..."
+	terraform plan -out=tfplan
+
+# Apply the Terraform plan - tfplan
+apply:
+	#!/usr/bin/env bash
+	echo "[*] Apply the Terraform plan - tfplan..."
+	terraform apply -auto-approve tfplan
+
+# Make a Terraform plan - tfplan for destroy
+destroy: init
+	#!/usr/bin/env bash
+	echo "[*] Make a Terraform plan - tfplan for destroy..."
+	terraform plan -destroy -out=tfplan
+
+# Get the output of Terraform plan - tfplan
+output: init
+	#!/usr/bin/env bash
+	echo "[*] Get the output of Terraform plan - tfplan..."
+	terraform output -json | jq .
+
+# Refresh the state of Terraform plan - tfplan
+refresh: init
+	#!/usr/bin/env bash
+	echo "[*] Refresh the state of Terraform plan - tfplan..."
+	terraform refresh
+
+# Combined recipes for quick provisioning
+plan-apply: plan apply
+	#!/usr/bin/env bash
+	echo "[*] Quick provisioning completed"
+
+# Combined recipes for quick destruction
+destroy-apply: destroy apply
+	#!/usr/bin/env bash
+	echo "[*] Quick destruction completed"
+
+# Generate Terraform Docs for the current directory
+gen-docs:
+	#!/usr/bin/env bash
+	CLOUD_PROVIDER=$(just _get-cloud-provider)
+	OS_TYPE=$(just _get-os-type)
+	echo "[*] Generating Terraform Docs for ${CLOUD_PROVIDER}/${OS_TYPE}..."
+	terraform-docs markdown table \
+		--output-file README.md \
+		--output-mode inject \
+		--config ../../.terraform-docs.yaml .

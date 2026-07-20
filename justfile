@@ -54,10 +54,13 @@ lint-md:
 # Generate Terraform Docs for all cloud providers
 gen-docs:
     #!/usr/bin/env bash
-    echo "[*] Generating Terraform Docs for all cloud providers..."
-    for cloud_provider in */; do
-        # run just only in a folder contains justfile
-        if [ -f ${cloud_provider}/justfile ]; then
-            just ${cloud_provider}/gen-docs
-        fi
-    done
+    set -euo pipefail
+    echo "[*] Generating Terraform Docs for all Terraform modules..."
+    while IFS= read -r module_dir; do
+        relative_module_dir="${module_dir#"{{PROJECT_ROOT}}"/}"
+        echo "[*] Updating module docs for ${relative_module_dir}"
+        (
+            cd "${module_dir}"
+            just gen-docs
+        )
+    done < <(find "{{PROJECT_ROOT}}" -mindepth 3 -maxdepth 3 -name justfile -exec dirname {} \; | sort)

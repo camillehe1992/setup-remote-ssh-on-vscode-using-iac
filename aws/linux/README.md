@@ -1,4 +1,5 @@
 <!-- BEGIN_TF_DOCS -->
+<!-- markdownlint-disable -->
 ## Requirements
 
 | Name | Version |
@@ -80,4 +81,5 @@ No modules.
 | <a name="output_instance_ssh_username"></a> [instance\_ssh\_username](#output\_instance\_ssh\_username) | Username for SSH connection |
 | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | ID of the security group |
 | <a name="output_ssh_command"></a> [ssh\_command](#output\_ssh\_command) | SSH command to connect to the instance |
+<!-- markdownlint-restore -->
 <!-- END_TF_DOCS -->
