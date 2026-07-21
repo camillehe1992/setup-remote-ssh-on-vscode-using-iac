@@ -5,12 +5,6 @@ variable "project_name" {
   default     = "remote-ssh-vscode"
 }
 
-variable "environment" {
-  description = "Environment name"
-  type        = string
-  default     = "dev"
-}
-
 # EC2 Instance Variables
 variable "instance_ami" {
   description = "AMI ID for EC2 instance. Defaults to latest Amazon Linux 2023 AMI if not provided."

@@ -50,15 +50,6 @@ repos:
 
   - repo: local
     hooks:
-      # Documentation Generation
-      - id: generate-module-docs
-        name: Generate Module Documentation
-        entry: bash scripts/generate-module-docs.sh
-        language: system
-        files: (^|/)\.terraform-docs\.yaml$|\.tf$
-        description: Generate Terraform module documentation for affected modules
-        stages: [pre-commit]
-
       # Markdown lint for changed documentation files
       - id: markdownlint
         name: Markdown Lint

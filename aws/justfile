@@ -1,108 +1,255 @@
-# justfile - Task runner for Terraform workflows
-# Usage: just command
-# Example:
-# From root directory, run `just aws/pre-check`
-# Or from aws directory, run `just pre-check`
+# justfile - Task runner for AWS workflows
+# Usage:
+#   cd aws && just <recipe> [os]
 
-# Project root directory (where the justfile is located)
 PROJECT_ROOT := `pwd`
+DEFAULT_OS := "linux"
+UPDATE_SSH_IP_SCRIPT := `printf '%s/../scripts/update-ssh-ip.sh' "$(pwd)"`
 
-# Shell to use
 set shell := ["bash", "-uc"]
 set dotenv-load := true
 set fallback := true
 
-# Get cloud-provider
+AWS_REGION := env_var_or_default("AWS_REGION", "ap-southeast-1")
+AWS_PROFILE := env_var_or_default("AWS_PROFILE", "app-deployer")
+S3_TF_STATE_BUCKET := `printf '%s' "${S3_TF_STATE_BUCKET:-terraform-state-${AWS_REGION:-ap-southeast-1}-bucket}"`
+
 _get-cloud-provider:
 	#!/usr/bin/env bash
-	basename $(pwd)
+	basename "$(pwd)"
 
-# Get aws profile
 _get-aws-profile:
-    #!/usr/bin/env bash
-    # Check if running in GitHub Actions
-    if [ -n "$GITHUB_ACTIONS" ]; then
-        # In GitHub Actions with OIDC, we don't use named profiles
-        # The credentials are already set by configure-aws-credentials
-        echo ""
-    elif [ -f .env ]; then
-        source .env && echo "${AWS_PROFILE:-app-deployer}"
-    else
-        echo "app-deployer"
-    fi
-
-# Pre Check cloud provider, aws profile
-pre-check:
 	#!/usr/bin/env bash
+	if [ -n "${GITHUB_ACTIONS:-}" ]; then
+		echo ""
+	else
+		echo "{{AWS_PROFILE}}"
+	fi
+
+pre-check os=DEFAULT_OS:
+	#!/usr/bin/env bash
+	set -euo pipefail
 	echo "[*] Pre-checks..."
 	CLOUD_PROVIDER=$(just _get-cloud-provider)
 	AWS_PROFILE=$(just _get-aws-profile)
 
 	echo "CLOUD_PROVIDER: ${CLOUD_PROVIDER}"
 	echo "AWS_PROFILE: ${AWS_PROFILE}"
-	AWS_PROFILE=${AWS_PROFILE} aws sts get-caller-identity | jq .
+	echo "OS_TYPE: {{os}}"
+	echo "AWS_REGION: {{AWS_REGION}}"
+	echo "S3_TF_STATE_BUCKET: {{S3_TF_STATE_BUCKET}}"
 
-# Create a new key pair via AWS CLI
+	if [ -n "${AWS_PROFILE}" ]; then
+		AWS_PROFILE="${AWS_PROFILE}" aws sts get-caller-identity | jq .
+	else
+		aws sts get-caller-identity | jq .
+	fi
+
 create-ssh-key:
 	#!/usr/bin/env bash
+	set -euo pipefail
 	echo "[*] Creating a new key pair..."
 	AWS_PROFILE=$(just _get-aws-profile)
 	KEY_PAIR_NAME="aws-remote-ssh-on-vscode"
-	aws ec2 create-key-pair --key-name ${KEY_PAIR_NAME} \
+	AWS_ARGS=()
+	if [ -n "${AWS_PROFILE}" ]; then
+		AWS_ARGS+=(--profile "${AWS_PROFILE}")
+	fi
+
+	aws ec2 create-key-pair --key-name "${KEY_PAIR_NAME}" \
 		--query 'KeyMaterial' \
-		--profile ${AWS_PROFILE} \
-		--output text > ${KEY_PAIR_NAME}.pem
+		"${AWS_ARGS[@]}" \
+		--output text > "${KEY_PAIR_NAME}.pem"
 
 	echo "[*] Setting permissions on the key pair file..."
-	chmod 400 ${KEY_PAIR_NAME}.pem
+	chmod 400 "${KEY_PAIR_NAME}.pem"
 
 	echo "[*] Moving the key pair file to the ~/.ssh/ directory..."
-	mv ${KEY_PAIR_NAME}.pem ~/.ssh/${KEY_PAIR_NAME}.pem
+	mv "${KEY_PAIR_NAME}.pem" "${HOME}/.ssh/${KEY_PAIR_NAME}.pem"
 
 	echo "[*] Listing existing key pairs..."
-	aws ec2 describe-key-pairs --key-name ${KEY_PAIR_NAME} --profile ${AWS_PROFILE} | jq .
+	aws ec2 describe-key-pairs --key-name "${KEY_PAIR_NAME}" "${AWS_ARGS[@]}" | jq .
 
-# Connect to your instance using the SSH command
-ssh-connect:
+ssh-connect os=DEFAULT_OS: (init os)
 	#!/usr/bin/env bash
-	echo "[*] Connect to your instance using the SSH command"
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Connect to your instance using the SSH command for aws/{{os}}"
+	cd "${TERRAFORM_DIR}"
 	CMD=$(terraform output -raw ssh_command)
-	echo $CMD
+	echo "${CMD}"
 
-# Add instance to ~/.ssh/config file
-add-ssh-config:
+add-ssh-config os=DEFAULT_OS: (init os)
 	#!/usr/bin/env bash
-	echo "[*] Adding instance to ~/.ssh/config file..."
-	INSTANCE_ID=$(terraform output -raw instance_id)
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Adding instance to ~/.ssh/config file for aws/{{os}}..."
+	cd "${TERRAFORM_DIR}"
 	PUBLIC_IP=$(terraform output -raw instance_public_ip)
 	OS_USER=$(terraform output -raw instance_ssh_username)
-	AWS_PROFILE=$(just _get-aws-profile)
 
-	echo "Host aws-dev-instance" >> ~/.ssh/config
-	echo "    HostName ${PUBLIC_IP}" >> ~/.ssh/config
-	echo "    User ${OS_USER}" >> ~/.ssh/config
-	echo "    IdentityFile ~/.ssh/aws-remote-ssh-on-vscode.pem" >> ~/.ssh/config
+	{
+		echo "Host aws-dev-instance"
+		echo "    HostName ${PUBLIC_IP}"
+		echo "    User ${OS_USER}"
+		echo "    IdentityFile ~/.ssh/aws-remote-ssh-on-vscode.pem"
+	} >> ~/.ssh/config
 
 	cat ~/.ssh/config
 
-# Update the security group rule for SSH access
-update-ssh-ip:
-	#!/usr/bin/env bash
-	echo "[*] Updating security group rule for SSH access..."
-	AWS_PROFILE=$(just _get-aws-profile)
-	SECURITY_GROUP_ID=$(terraform output -raw security_group_id)
-	bash ../scripts/update-ssh-ip.sh ${AWS_PROFILE} ${SECURITY_GROUP_ID}
-
-# Generate Terraform Docs for AWS resources
-gen-docs:
+update-ssh-ip os=DEFAULT_OS: (init os)
 	#!/usr/bin/env bash
 	set -euo pipefail
-	for dir in */ ; do
-		if [ -f "${dir}justfile" ]; then
-			echo "[*] Updating module docs for aws/${dir%/}"
-			(
-				cd "${dir}"
-				just gen-docs
-			)
-		fi
-	done
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Updating security group rule for SSH access for aws/{{os}}..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	cd "${TERRAFORM_DIR}"
+	SECURITY_GROUP_ID=$(terraform output -raw security_group_id)
+	if [ -n "${AWS_PROFILE}" ]; then
+		bash "{{UPDATE_SSH_IP_SCRIPT}}" "${AWS_PROFILE}" "${SECURITY_GROUP_ID}"
+	else
+		bash "{{UPDATE_SSH_IP_SCRIPT}}" "" "${SECURITY_GROUP_ID}"
+	fi
+
+init os=DEFAULT_OS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	if [ ! -d "${TERRAFORM_DIR}" ]; then
+		echo "[!] Terraform directory not found: ${TERRAFORM_DIR}" >&2
+		exit 1
+	fi
+	if ! compgen -G "${TERRAFORM_DIR}/*.tf" > /dev/null; then
+		echo "[!] No Terraform files found under: ${TERRAFORM_DIR}" >&2
+		exit 1
+	fi
+
+	echo "[*] Initialize Terraform backend for aws/{{os}}..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	cd "${TERRAFORM_DIR}"
+	BACKEND_ARGS=(
+		-backend-config=backend.hcl
+		-backend-config="bucket={{S3_TF_STATE_BUCKET}}"
+		-backend-config="region={{AWS_REGION}}"
+	)
+	if [ -n "${AWS_PROFILE}" ]; then
+		BACKEND_ARGS+=(-backend-config="profile=${AWS_PROFILE}")
+		export AWS_PROFILE
+	fi
+	terraform init -reconfigure "${BACKEND_ARGS[@]}"
+
+plan os=DEFAULT_OS: (init os)
+	#!/usr/bin/env bash
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Creating Terraform plan for aws/{{os}}..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	cd "${TERRAFORM_DIR}"
+	if [ -n "${AWS_PROFILE}" ]; then
+		export AWS_PROFILE
+	fi
+	terraform plan -out=tfplan
+
+apply os=DEFAULT_OS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Applying Terraform plan for aws/{{os}}..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	cd "${TERRAFORM_DIR}"
+	if [ -n "${AWS_PROFILE}" ]; then
+		export AWS_PROFILE
+	fi
+	terraform apply -auto-approve tfplan
+
+destroy os=DEFAULT_OS: (init os)
+	#!/usr/bin/env bash
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Creating Terraform destroy plan for aws/{{os}}..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	cd "${TERRAFORM_DIR}"
+	if [ -n "${AWS_PROFILE}" ]; then
+		export AWS_PROFILE
+	fi
+	terraform plan -destroy -out=tfplan
+
+output os=DEFAULT_OS: (init os)
+	#!/usr/bin/env bash
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Printing Terraform outputs for aws/{{os}}..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	cd "${TERRAFORM_DIR}"
+	if [ -n "${AWS_PROFILE}" ]; then
+		export AWS_PROFILE
+	fi
+	terraform output
+
+refresh os=DEFAULT_OS: (init os)
+	#!/usr/bin/env bash
+	set -euo pipefail
+	TERRAFORM_DIR="{{PROJECT_ROOT}}/{{os}}/terraform"
+	echo "[*] Refreshing Terraform state for aws/{{os}}..."
+	AWS_PROFILE=$(just _get-aws-profile)
+	cd "${TERRAFORM_DIR}"
+	if [ -n "${AWS_PROFILE}" ]; then
+		export AWS_PROFILE
+	fi
+	terraform refresh
+
+plan-apply os=DEFAULT_OS: (plan os) (apply os)
+	#!/usr/bin/env bash
+	echo "[*] Quick provisioning completed for aws/{{os}}"
+
+destroy-apply os=DEFAULT_OS: (destroy os) (apply os)
+	#!/usr/bin/env bash
+	echo "[*] Quick destruction completed for aws/{{os}}"
+
+ansible-ping os=DEFAULT_OS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	ANSIBLE_DIR="{{PROJECT_ROOT}}/{{os}}/ansible"
+	if [ ! -d "${ANSIBLE_DIR}" ]; then
+		echo "[!] Ansible directory not found: ${ANSIBLE_DIR}" >&2
+		exit 1
+	fi
+	echo "[*] Testing connectivity with Ansible inventory for aws/{{os}}..."
+	cd "${ANSIBLE_DIR}"
+	ansible aws_linux_remote_dev -m ping
+
+ansible-syntax-check os=DEFAULT_OS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	ANSIBLE_DIR="{{PROJECT_ROOT}}/{{os}}/ansible"
+	if [ ! -d "${ANSIBLE_DIR}" ]; then
+		echo "[!] Ansible directory not found: ${ANSIBLE_DIR}" >&2
+		exit 1
+	fi
+	echo "[*] Running Ansible syntax check for aws/{{os}}..."
+	cd "${ANSIBLE_DIR}"
+	ansible-playbook --syntax-check playbooks/bootstrap.yml
+
+ansible-bootstrap os=DEFAULT_OS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	ANSIBLE_DIR="{{PROJECT_ROOT}}/{{os}}/ansible"
+	if [ ! -d "${ANSIBLE_DIR}" ]; then
+		echo "[!] Ansible directory not found: ${ANSIBLE_DIR}" >&2
+		exit 1
+	fi
+	echo "[*] Applying Ansible bootstrap playbook for aws/{{os}}..."
+	cd "${ANSIBLE_DIR}"
+	ansible-playbook playbooks/bootstrap.yml
+
+ansible-bootstrap-check os=DEFAULT_OS:
+	#!/usr/bin/env bash
+	set -euo pipefail
+	ANSIBLE_DIR="{{PROJECT_ROOT}}/{{os}}/ansible"
+	if [ ! -d "${ANSIBLE_DIR}" ]; then
+		echo "[!] Ansible directory not found: ${ANSIBLE_DIR}" >&2
+		exit 1
+	fi
+	echo "[*] Previewing Ansible bootstrap changes for aws/{{os}}..."
+	cd "${ANSIBLE_DIR}"
+	ansible-playbook --check --diff playbooks/bootstrap.yml

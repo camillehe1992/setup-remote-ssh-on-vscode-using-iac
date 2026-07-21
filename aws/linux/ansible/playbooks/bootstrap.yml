@@ -1,0 +1,19 @@
+---
+- name: Bootstrap AWS Linux remote development instance
+  hosts: aws_linux_remote_dev
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: base
+      tags:
+        - base
+
+    - role: ssh_remote_dev
+      tags:
+        - ssh
+        - vscode-remote
+
+    - role: docker
+      tags:
+        - docker
