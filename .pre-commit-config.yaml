@@ -1,104 +1,88 @@
 # Pre-commit configuration for Terraform/Terragrunt projects
-# Install with: pre-commit install
-# This installs both pre-commit and pre-push hooks by default.
-# Run manually with: pre-commit run --all-files
+# Install: pre-commit install -t pre-commit
+# Install push scan: pre-commit install -t pre-push
+# Manual full security scan: pre-commit run terraform_trivy terraform_checkov --all-files
 
 minimum_pre_commit_version: "3.5.0"
-default_install_hook_types: [pre-commit, pre-push]
 
 repos:
-  # Terraform/Terragrunt specific hooks
+  # Terraform/Terragrunt toolchain
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.88.0
+    rev: v1.108.0
     hooks:
       - id: terraform_fmt
         name: Terraform Format
-        description: Format Terraform files
+        description: Auto format Terraform HCL
         stages: [pre-commit]
 
       - id: terraform_validate
-        name: Terraform Validate
-        description: Validate Terraform syntax
+        name: Terraform Validate Syntax
+        description: Validate Terraform configuration syntax
         args:
-          - --args=-json
           - --args=-no-color
-          - --hook-config=--retry-once-with-cleanup=true
-        verbose: false # reduce output
         stages: [pre-commit]
 
       - id: terraform_tflint
-        name: Terraform TFLint
-        description: Lint Terraform files
+        name: Terraform TFLint Lint
+        description: Terraform static linter
         args:
           - --args=--init
         stages: [pre-commit]
 
       - id: terraform_checkov
-        name: Terraform Checkov
-        description: Static analysis of Terraform code for security best practices
+        name: Checkov IaC Security Scan
+        description: Block MEDIUM/HIGH/CRITICAL misconfigurations
         args:
           - --args=--quiet
-          - --args=--soft-fail
+          - --args=--severity=MEDIUM,HIGH,CRITICAL
         stages: [pre-push]
 
       - id: terraform_trivy
-        name: Terraform Trivy
-        description: Vulnerability scanner for Terraform code
+        name: Trivy IaC & Secret Scan
+        description: Trivy scan, only block medium+ issues
         args:
           - --args=--quiet
+          - --args=--scanners=config,secret
+          - --args=--severity=MEDIUM,HIGH,CRITICAL
         stages: [pre-push]
 
+  # Local Markdown lint with auto-fix
   - repo: local
     hooks:
-      # Markdown lint for changed documentation files
       - id: markdownlint
         name: Markdown Lint
-        entry: markdownlint
+        entry: markdownlint --fix
         language: system
         types: [markdown]
-        description: Lint changed Markdown files
+        description: Auto fix markdown formatting
         stages: [pre-commit]
 
-  # Additional useful hooks
+  # General file & secret checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        name: Trim Trailing Whitespace
-        description: Remove trailing whitespace from all files
-
       - id: end-of-file-fixer
-        name: Fix End of Files
-        description: Ensure files end with a newline
-
       - id: check-yaml
-        name: Check YAML Syntax
-        description: Validate YAML syntax
-
       - id: check-json
-        name: Check JSON Syntax
-        description: Validate JSON syntax
-
       - id: check-merge-conflict
-        name: Check Merge Conflicts
-        description: Check for unresolved merge conflicts
-
       - id: detect-private-key
-        name: Detect Private Key
-        description: Check for private keys in files
 
-      - id: mixed-line-ending
-        name: Check Mixed Line Endings
-        description: Detect files with mixed line endings
-        args: ["--fix=lf"]
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect Hardcoded Secrets
+        stages: [pre-commit]
 
-# Configuration for specific hooks
 exclude: |
   (?x)^(
-    .*?(^|/)\.terraform/.*|
-    .*?(^|/)\.git/.*|
-    .*?(^|/)node_modules/.*|
-    .*?(^|/)vendor/.*|
-    .*?(^|/)\.idea/.*|
-    .*?(^|/)\.vscode/.*
+    .*/\.terraform/.*|
+    .*/\.git/.*|
+    .*/node_modules/.*|
+    .*/vendor/.*|
+    .*/\.idea/.*|
+    .*/\.vscode/.*|
+    .*\.tfstate$|
+    .*\.tfstate\.backup$
   )$
