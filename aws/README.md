@@ -86,6 +86,11 @@ Now, you can take the journey of remote development with VSCode.
 
 > **Note**: For security concerns, Currently the SSH access is only allowed from your current IP. You can update the security group rule for SSH access using `just update-ssh-ip` when you need to access the instance from a different IP.
 
+`just update-ssh-ip` locates the single Terraform-managed IPv4 ingress rule for
+TCP/22 with the description `SSH access` and updates that rule atomically. It
+refuses to modify the security group when no rule or multiple rules match; in
+that case, update `allowed_ssh_cidr_blocks` through Terraform instead.
+
 ## Clean Up
 
 - Remove the SSH host entry from ~/.ssh/config if you no longer need it.
