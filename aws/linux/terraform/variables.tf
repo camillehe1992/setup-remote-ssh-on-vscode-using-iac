@@ -7,9 +7,15 @@ variable "project_name" {
 
 # EC2 Instance Variables
 variable "instance_ami" {
-  description = "AMI ID for EC2 instance. Defaults to latest Amazon Linux 2023 AMI if not provided."
+  description = "Optional EC2 AMI ID override; defaults to the latest regional Amazon Linux 2023 AMI"
   type        = string
-  default     = "ami-011d19742f14ff9b8" # Amazon Linux 2023 AMI al2023-ami-2023.10.20260302.1-kernel-6.18-x86_64
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.instance_ami == null ? true : trimspace(var.instance_ami) != ""
+    error_message = "instance_ami must be null or a non-empty AMI ID."
+  }
 }
 
 variable "instance_type" {

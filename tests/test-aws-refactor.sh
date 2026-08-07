@@ -50,6 +50,29 @@ fi
 
 IAM_VARIABLES_FILE="aws/linux/terraform/variables.tf"
 EC2_FILE="aws/linux/terraform/ec2_instance.tf"
+DATA_FILE="aws/linux/terraform/data.tf"
+
+if grep -A8 -F 'variable "instance_ami"' "${IAM_VARIABLES_FILE}" | grep -Fq 'default     = null' &&
+    grep -A12 -F 'variable "instance_ami"' "${IAM_VARIABLES_FILE}" | grep -Fq 'trimspace(var.instance_ami) != ""'; then
+    pass "AMI override is nullable and rejects empty strings"
+else
+    fail "AMI override does not use a validated nullable default"
+fi
+
+if grep -Fq 'data "aws_ssm_parameter" "al2023_ami"' "${DATA_FILE}" &&
+    grep -Fq 'count = var.instance_ami == null ? 1 : 0' "${DATA_FILE}" &&
+    grep -Fq '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64' "${DATA_FILE}" &&
+    grep -Fq 'instance_ami = var.instance_ami != null ? trimspace(var.instance_ami) : data.aws_ssm_parameter.al2023_ami[0].value' "${DATA_FILE}"; then
+    pass "Terraform resolves the regional AL2023 AMI from SSM"
+else
+    fail "Terraform does not conditionally resolve the regional AL2023 AMI"
+fi
+
+if grep -Fq 'ami                    = local.instance_ami' "${EC2_FILE}"; then
+    pass "EC2 consumes the resolved AMI"
+else
+    fail "EC2 does not consume the resolved AMI"
+fi
 
 if grep -Fq 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore' "${IAM_VARIABLES_FILE}"; then
     pass "EC2 role defaults to the SSM managed-instance policy"

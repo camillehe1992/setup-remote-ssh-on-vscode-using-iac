@@ -1,6 +1,6 @@
 # EC2 Instance (Spot or On-Demand)
 resource "aws_instance" "ec2" {
-  ami                    = var.instance_ami
+  ami                    = local.instance_ami
   instance_type          = var.instance_type
   key_name               = var.key_pair_name
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
