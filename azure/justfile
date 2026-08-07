@@ -104,17 +104,3 @@ gen-pub-pem-key:
 
 	# View the public key
 	cat ~/.ssh/${EXISTING_SSH_KEY}.pub
-
-# Generate Terraform Docs for Azure resources
-gen-docs:
-	#!/usr/bin/env bash
-	set -euo pipefail
-	for dir in */ ; do
-		if [ -f "${dir}justfile" ]; then
-			echo "[*] Updating module docs for azure/${dir%/}"
-			(
-				cd "${dir}"
-				just gen-docs
-			)
-		fi
-	done

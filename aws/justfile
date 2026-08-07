@@ -111,6 +111,10 @@ update-ssh-ip os=DEFAULT_OS: (init os)
 		bash "{{UPDATE_SSH_IP_SCRIPT}}" "" "${SECURITY_GROUP_ID}"
 	fi
 
+# ------------------------------------------------------------------------------
+# Terraform commands
+# ------------------------------------------------------------------------------
+
 init os=DEFAULT_OS:
 	#!/usr/bin/env bash
 	set -euo pipefail
@@ -205,6 +209,10 @@ plan-apply os=DEFAULT_OS: (plan os) (apply os)
 destroy-apply os=DEFAULT_OS: (destroy os) (apply os)
 	#!/usr/bin/env bash
 	echo "[*] Quick destruction completed for aws/{{os}}"
+
+# ------------------------------------------------------------------------------
+# Ansible commands
+# ------------------------------------------------------------------------------
 
 ansible-ping os=DEFAULT_OS:
 	#!/usr/bin/env bash

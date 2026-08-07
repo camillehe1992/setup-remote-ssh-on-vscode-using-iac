@@ -95,12 +95,10 @@ variable "allowed_ssh_cidr_blocks" {
 
 # IAM Role Variables
 variable "iam_policies_to_attach" {
-  description = "List of IAM policy ARNs to attach to the instance role"
+  description = "IAM policy ARNs attached to the EC2 instance role; override for workload-specific access"
   type        = list(string)
   default = [
-    "arn:aws:iam::aws:policy/AmazonEC2FullAccess",
-    "arn:aws:iam::aws:policy/AmazonSSMFullAccess",
-    "arn:aws:iam::aws:policy/EC2InstanceConnect",
+    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
   ]
 }
 

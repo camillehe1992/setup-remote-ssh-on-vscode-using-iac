@@ -104,14 +104,3 @@ plan-apply: plan apply
 destroy-apply: destroy apply
 	#!/usr/bin/env bash
 	echo "[*] Quick destruction completed"
-
-# Generate Terraform Docs for the current directory
-gen-docs:
-	#!/usr/bin/env bash
-	CLOUD_PROVIDER=$(just _get-cloud-provider)
-	OS_TYPE=$(just _get-os-type)
-	echo "[*] Generating Terraform Docs for ${CLOUD_PROVIDER}/${OS_TYPE}..."
-	terraform-docs markdown table \
-		--output-file README.md \
-		--output-mode inject \
-		--config ../../.terraform-docs.yaml .
