@@ -1,18 +1,23 @@
 # EC2 Instance (Spot or On-Demand)
 resource "aws_instance" "ec2" {
-  ami                    = var.instance_ami
+  ami                    = local.instance_ami
   instance_type          = var.instance_type
   key_name               = var.key_pair_name
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
   availability_zone      = data.aws_availability_zones.available.names[0]
 
-  instance_market_options {
-    market_type = var.use_spot_instance ? "spot" : "on-demand"
-    spot_options {
-      max_price                      = var.spot_instance_max_price
-      spot_instance_type             = var.use_spot_instance ? "persistent" : "one-time"
-      instance_interruption_behavior = var.use_spot_instance ? "stop" : "terminate"
+  dynamic "instance_market_options" {
+    for_each = var.use_spot_instance ? [1] : []
+
+    content {
+      market_type = "spot"
+
+      spot_options {
+        max_price                      = var.spot_instance_max_price
+        spot_instance_type             = "persistent"
+        instance_interruption_behavior = "stop"
+      }
     }
   }
 

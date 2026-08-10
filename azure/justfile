@@ -1,0 +1,106 @@
+# justfile - Task runner for Terraform workflows
+# Usage: just command
+# Example:
+# From root directory, run `just azure/pre-check`
+# Or from azure directory, run `just pre-check`
+
+# Project root directory (where the justfile is located)
+PROJECT_ROOT := `pwd`
+
+# Shell to use
+set shell := ["bash", "-uc"]
+set dotenv-load := true
+set fallback := true
+
+# Variables or fetch from environment variables (.env)
+ENVIRONMENT := env_var_or_default("ENVIRONMENT", "dev")
+LOCATION := env_var_or_default("LOCATION", "chinanorth3")
+RESOURCE_GROUP_NAME := env_var_or_default("RESOURCE_GROUP_NAME", "terraform-state-rg")
+STORAGE_ACCOUNT_NAME := env_var_or_default("STORAGE_ACCOUNT_NAME", "tfstate8f0227ce")
+CONTAINER_NAME := env_var_or_default("CONTAINER_NAME", "tfstate")
+
+# Get cloud-provider
+_get-cloud-provider:
+	#!/usr/bin/env bash
+	basename $(pwd)
+
+_get-azure-arm-client-id:
+	#!/usr/bin/env bash
+	if [ -f .env ]; then
+	    source .env && echo "${ARM_CLIENT_ID:-}"
+	else
+	    echo "Not found ARM_CLIENT_ID in .env"
+	    exit 1
+	fi
+
+_get-azure-arm-client-secret:
+	#!/usr/bin/env bash
+	if [ -f .env ]; then
+	    source .env && echo "${ARM_CLIENT_SECRET:-}"
+	else
+	    echo "Not found ARM_CLIENT_SECRET in .env"
+	    exit 1
+	fi
+
+_get-azure-arm-tenant-id:
+	#!/usr/bin/env bash
+	if [ -f .env ]; then
+	    source .env && echo "${ARM_TENANT_ID:-}"
+	else
+	    echo "Not found ARM_TENANT_ID in .env"
+	    exit 1
+	fi
+
+_get-azure-arm-subscription-id:
+	#!/usr/bin/env bash
+	if [ -f .env ]; then
+	    source .env && echo "${ARM_SUBSCRIPTION_ID:-}"
+	else
+	    echo "Not found ARM_SUBSCRIPTION_ID in .env"
+	    exit 1
+	fi
+
+_get-azure-arm-access-key:
+	#!/usr/bin/env bash
+	if [ -f .env ]; then
+	    source .env && echo "${ACCESS_KEY:-}"
+	else
+	    echo "Not found ACCESS_KEY in .env"
+	    exit 1
+	fi
+
+# Pre Check cloud provider, aws profile
+pre-check:
+	#!/usr/bin/env bash
+	echo "[*] Pre-checks..."
+	CLOUD_PROVIDER=$(just _get-cloud-provider)
+	echo "CLOUD_PROVIDER: ${CLOUD_PROVIDER}"
+
+	ARM_CLIENT_ID=$(just _get-azure-arm-client-id)
+	ARM_CLIENT_SECRET=$(just _get-azure-arm-client-secret)
+	ARM_TENANT_ID=$(just _get-azure-arm-tenant-id)
+	ARM_SUBSCRIPTION_ID=$(just _get-azure-arm-subscription-id)
+
+	echo "[*] Login to Azure..."
+	az login --service-principal -u ${ARM_CLIENT_ID} -p ${ARM_CLIENT_SECRET} \
+		--tenant ${ARM_TENANT_ID} >> /dev/null
+	# Set subscription
+	az account set --subscription ${ARM_SUBSCRIPTION_ID}
+
+	az account show | jq .
+	echo "[*] Login to Azure done."
+
+# Setup Azure backend storage
+setup-backend:
+	#!/usr/bin/env bash
+	sh ../scripts/azure-backend-setup.sh
+	echo "[*] Setup Azure backend storage done."
+
+gen-pub-pem-key:
+	#!/usr/bin/env bash
+	EXISTING_SSH_KEY=azure-omc-deploy-pc_key.pem
+	# Generate public key from existing PEM private key
+	ssh-keygen -y -f ~/.ssh/${EXISTING_SSH_KEY} > ~/.ssh/${EXISTING_SSH_KEY}.pub
+
+	# View the public key
+	cat ~/.ssh/${EXISTING_SSH_KEY}.pub

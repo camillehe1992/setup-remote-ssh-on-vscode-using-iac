@@ -1,0 +1,19 @@
+---
+- name: Deploy VS Code Remote SSH settings
+  ansible.builtin.template:
+    src: 99-vscode.conf.j2
+    dest: /etc/ssh/sshd_config.d/99-vscode.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart sshd
+
+- name: Validate sshd configuration
+  ansible.builtin.command: sshd -t
+  changed_when: false
+
+- name: Ensure sshd service is enabled and running
+  ansible.builtin.service:
+    name: sshd
+    enabled: true
+    state: started

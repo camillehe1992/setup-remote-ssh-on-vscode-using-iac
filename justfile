@@ -1,9 +1,4 @@
 # justfile - Task runner for Terraform workflows
-# Usage: just plan [cloud-provider]
-# Example: just plan aws
-
-# Cloud Provider
-cloud-provider := "aws"
 
 # Project root directory (where the justfile is located)
 PROJECT_ROOT := `pwd`
@@ -11,14 +6,24 @@ PROJECT_ROOT := `pwd`
 # Shell to use
 set shell := ["bash", "-uc"]
 set dotenv-load := true
+set positional-arguments
 
+# Delegate AWS workflows while keeping aws/justfile as the implementation.
+aws *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "$#" -eq 0 ]; then
+        echo "Usage: just aws <recipe> [arguments]" >&2
+        exit 2
+    fi
+    exec just --justfile "{{PROJECT_ROOT}}/aws/justfile" \
+        --working-directory "{{PROJECT_ROOT}}/aws" "$@"
 
 versions:
     #!/usr/bin/env bash
     echo "Show version information for installed tools..."
     echo "Terraform version: $(terraform version)"
     echo "markdownlint-cli version: $(markdownlint --version)"
-    echo "terraform-docs version: $(terraform-docs --version)"
     echo "pre-commit version: $(pre-commit -V)"
     echo "checkov version: $(checkov --version)"
     echo "trivy version: $(trivy --version)"
@@ -28,36 +33,13 @@ versions:
     echo "AliCloud version $(aliyun --version | head -n 1)"
 
 # ------------------------------------------------------------------------------
-# Path helpers (as recipes)
-# ------------------------------------------------------------------------------
-
-# Cloud Provider directory
-tf-cp-dir cloud-provider:
-    #!/usr/bin/env bash
-    echo "{{PROJECT_ROOT}}/{{cloud-provider}}/"
-
-# ------------------------------------------------------------------------------
 # Core commands
 # ------------------------------------------------------------------------------
-clean:
-    #!/usr/bin/env bash
-    echo "[*] Cleaning up temporary files"
-    find {{PROJECT_ROOT}} -type d -name ".terraform" -exec rm -rf {} + 2>/dev/null || true
-    find {{PROJECT_ROOT}} -type f -name "*.tfstate*" -delete
-    echo "[*] Cleaning up completed"
 
-lint-md:
+install-hooks:
     #!/usr/bin/env bash
-    echo "Linting markdown files..."
-    markdownlint "**/*.md"
-
-# Generate Terraform Docs for all cloud providers
-gen-docs:
-    #!/usr/bin/env bash
-    echo "[*] Generating Terraform Docs for all cloud providers..."
-    for cloud_provider in */; do
-        # run just only in a folder contains justfile
-        if [ -f ${cloud_provider}/justfile ]; then
-            just ${cloud_provider}/gen-docs
-        fi
-    done
+    echo "[*] Installing pre-commit hooks"
+    pip install pre-commit
+    echo "[*] Pre-commit installed"
+    pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg
+    echo "[*] Pre-commit hooks installed"

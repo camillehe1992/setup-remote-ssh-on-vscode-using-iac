@@ -1,0 +1,37 @@
+---
+ansible_python_interpreter: /usr/bin/python3
+
+remote_dev_user: ec2-user
+remote_dev_group: ec2-user
+remote_workspace_dir: /home/ec2-user/workspace
+
+base_update_all_packages: true
+base_install_development_tools: true
+base_packages:
+  - bash-completion
+  - curl
+  - fzf
+  - git
+  - htop
+  - jq
+  - rsync
+  - tar
+  - tree
+  - unzip
+  - vim
+  - wget
+  - yq
+  - zsh
+
+ssh_remote_config:
+  client_alive_interval: 60
+  client_alive_count_max: 3
+  tcp_keep_alive: "yes"
+  allow_tcp_forwarding: "yes"
+  x11_forwarding: "yes"
+  max_sessions: 20
+  password_authentication: "no"
+
+docker_users:
+  - ec2-user
+docker_enable_compose_plugin: false
