@@ -1,0 +1,8 @@
+---
+remote_dev_user: ec2-user
+remote_dev_group: ec2-user
+remote_workspace_dir: /home/ec2-user/workspace
+
+base_update_all_packages: true
+base_install_development_tools: true
+base_packages: []

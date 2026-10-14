@@ -1,0 +1,44 @@
+---
+- name: Update all installed packages
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_only: true
+  when: base_update_all_packages
+
+- name: Install Development Tools group
+  ansible.builtin.dnf:
+    name: "@Development Tools"
+    state: present
+  when: base_install_development_tools
+
+- name: Install base packages
+  ansible.builtin.dnf:
+    name: "{{ base_packages }}"
+    state: present
+  when: base_packages | length > 0
+
+- name: Ensure remote workspace directory exists
+  ansible.builtin.file:
+    path: "{{ remote_workspace_dir }}"
+    state: directory
+    owner: "{{ remote_dev_user }}"
+    group: "{{ remote_dev_group }}"
+    mode: "0755"
+
+- name: Ensure remote user SSH directory exists
+  ansible.builtin.file:
+    path: "/home/{{ remote_dev_user }}/.ssh"
+    state: directory
+    owner: "{{ remote_dev_user }}"
+    group: "{{ remote_dev_group }}"
+    mode: "0700"
+
+- name: Ensure authorized_keys file exists
+  ansible.builtin.copy:
+    content: ""
+    dest: "/home/{{ remote_dev_user }}/.ssh/authorized_keys"
+    force: false
+    owner: "{{ remote_dev_user }}"
+    group: "{{ remote_dev_group }}"
+    mode: "0600"

@@ -5,17 +5,17 @@ variable "project_name" {
   default     = "remote-ssh-vscode"
 }
 
-variable "environment" {
-  description = "Environment name"
-  type        = string
-  default     = "dev"
-}
-
 # EC2 Instance Variables
 variable "instance_ami" {
-  description = "AMI ID for EC2 instance. Defaults to latest Amazon Linux 2023 AMI if not provided."
+  description = "Optional EC2 AMI ID override; defaults to the latest regional Amazon Linux 2023 AMI"
   type        = string
-  default     = "ami-011d19742f14ff9b8" # Amazon Linux 2023 AMI al2023-ami-2023.10.20260302.1-kernel-6.18-x86_64
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.instance_ami == null ? true : trimspace(var.instance_ami) != ""
+    error_message = "instance_ami must be null or a non-empty AMI ID."
+  }
 }
 
 variable "instance_type" {
@@ -101,12 +101,10 @@ variable "allowed_ssh_cidr_blocks" {
 
 # IAM Role Variables
 variable "iam_policies_to_attach" {
-  description = "List of IAM policy ARNs to attach to the instance role"
+  description = "IAM policy ARNs attached to the EC2 instance role; override for workload-specific access"
   type        = list(string)
   default = [
-    "arn:aws:iam::aws:policy/AmazonEC2FullAccess",
-    "arn:aws:iam::aws:policy/AmazonSSMFullAccess",
-    "arn:aws:iam::aws:policy/EC2InstanceConnect",
+    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
   ]
 }
 

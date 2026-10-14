@@ -1,0 +1,2 @@
+# Ignore: EBS volume does not use a customer-managed KMS key.
+CKV_AWS_104
